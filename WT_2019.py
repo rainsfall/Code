@@ -15,10 +15,7 @@ df = pd.read_csv('C:/Users/Onlyone/OneDrive/桌面/数据/风电数据/2019_lian
 
 
 x = df.index
-WT1_d = df['WT1'].resample('D',closed = 'right',label = 'right').mean()
-WT1_h = df['WT1'].resample('H',closed = 'right',label = 'right').mean()
 WT1_q = df['WT1'].resample('15T',closed = 'right',label = 'right').mean()
-WT1_normal = df['WT1']
 '''绘制数据图像'''
 '''
 fig, axs = plt.subplots(nrows=3, figsize=(24, 15))
@@ -73,37 +70,51 @@ res = acorr_ljungbox(WT1_normal,lags = [6,12,24],return_df = True)
 '''
 
 '''STL分解'''
-'''
-res_d = STL(WT1_d).fit()
-res_normal = STL(WT1_normal,period = 288).fit()
-fig, ax = plt.subplots(8,figsize=(20,15))
-fig.subplots_adjust(hspace = 2)
-res_d.plot()
-res_normal.plot()
+res_q = STL(WT1_q,period = 96).fit()
+fig, ax = plt.subplots(4,figsize=(40,15))
+ax[0].plot(WT1_q)
+ax[0].set_title("Actual")
+ax[1].plot(res_q.trend)
+ax[2].plot(res_q.seasonal)
+ax[3].plot(res_q.resid)
 plt.show()
-'''
 
 '''数据分割'''
-train, test = train_test_split(WT1_d, train_size=0.8)
-'''模型定阶'''
-model = auto_arima(WT1_d, seasonal=True, m=30)
-print(model.summary())
+trend_q = res_q.trend
+season_q = res_q.seasonal
+resid_q = res_q.resid
+train_trend_q, test_trend_q = train_test_split(trend_q, train_size=0.8)
+train_season_q,test_season_q = train_test_split(season_q, train_size=0.8)
+'''模型定阶''' 
+model_trend = auto_arima(train_trend_q, seasonal=True,n_jobs=-1)
+model_season = auto_arima(train_season_q, seasonal=True,n_jobs=-1)
+print(model_trend.summary())
+print(model_season.summary())
 
 '''模型拟合'''
-fitted = model.predict_in_sample()
+fitted_trend = model_trend.predict_in_sample()
 
 '''效果展示'''
-fig, axs = plt.subplots(2, 2,figsize = (20,16))
-
-model.resid.plot(ax=axs[0][0])
+fig, axs = plt.subplots(4, 2,figsize = (20,16))
+model_trend.resid.plot(ax=axs[0][0])
 axs[0][0].set_title('residual')
-
-model.resid.plot(kind='hist', ax=axs[0][1])
+model_trend.resid.plot(kind='hist', ax=axs[0][1])
 axs[0][1].set_title('histogram')
-
-sm.qqplot(model.resid, line='45', fit=True, ax=axs[1][0])
+sm.qqplot(model_trend.resid, line='45', fit=True, ax=axs[1][0])
 axs[1][0].set_title('Normal Q-Q')
+plot_acf(model_trend.resid, ax=axs[1][1])
 
-plot_acf(model.resid, ax=axs[1][1])
-
+model_season.resid.plot(ax=axs[2][0])
+axs[0][0].set_title('residual')
+model_season.resid.plot(kind='hist', ax=axs[2][1])
+axs[0][1].set_title('histogram')
+sm.qqplot(model_season.resid, line='45', fit=True, ax=axs[3][0])
+axs[1][0].set_title('Normal Q-Q')
+plot_acf(model_season.resid, ax=axs[3][1])
 plt.show()
+
+'''模型有限步预测'''
+fcst_trend = model_trend.predict(test_trend_q.shape[0])
+fcst_trend = pd.Series(fcst_trend, index=test_trend_q.index)
+fcst_season = model_season.predict(test_season_q.shape[0])
+fcst_season = pd.Series(fcst_trend, index=test_season_q.index)
