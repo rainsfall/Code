@@ -17,7 +17,7 @@ df = pd.read_csv('C:/Users/Onlyone/OneDrive/桌面/数据/风电数据/2019_lian
 x = df.index
 WT1_q = df['WT1'].resample('15T',closed = 'right',label = 'right').mean()
 '''绘制数据图像'''
-'''
+
 fig, axs = plt.subplots(nrows=3, figsize=(24, 15))
 axs[0].plot(x, df['WT1'],color = (46/255,89/255,167/255))
 axs[1].plot(x, df['WT2'],color = (242/255,200/255,103/255))
@@ -27,7 +27,7 @@ axs[1].set_title('WT2')
 axs[2].set_title('WT3')
 fig.suptitle('风机功率')
 plt.show()
-'''
+
 '''进行平稳性检验
 # ADF平稳性检验
 def check_stationarity(column):

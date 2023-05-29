@@ -145,7 +145,7 @@ end
 % 水电站功率约束
 Constraints = [Constraints,...
     P_itH(1,:) == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_down(1,:)).*Q_it_ele(1,:),...
-    P_itH(2,:) == 7*9.81*0.5*(Z_it_upper(2,:)-Z_it_down(2,:)).*Q_it_ele(2,:)];
+    P_itH(2,:) == 7*9.81*0.5*(Z_it_upper(2,:)-Z_it_down(2,:)).*Q_it_ele(2,:)];%这里的单位为KW，所以下面的1280*1e3实际上是1280MW
 % 泵站耗电量约束
 Constraints = [Constraints,...
     P_itPump == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_upper(2,:)).*Q_it_pump];
@@ -169,8 +169,8 @@ Constraints = [Constraints, 0*1e8<=V_itl1<=247.14*1e8, 0<=V_itl2<=10*1e8];
 Constraints = [Constraints,V_it(1,1) == 60*1e8,V_it(2,1) == 9.1*1e8]; %库容初值
 Constraints = [Constraints,Q_it(1,1) == 500,Q_it(2,1) == 1559.93]; %泄流量初值
 
-% 绝对值问题
-load = normrnd(4*1e6, 1e6, [1, 96]);
+% 绝对值问题,负荷跟踪误差最小
+load = normrnd(3*1e6, 1e6, [1, 96]);
 Z = sdpvar(1,96);
 Constraints = [Constraints,Z >= P_itH(1,:)+P_itH(2,:)-load(1,:),...
     Z >= load(1,:)-P_itH(1,:)-P_itH(2,:)];
@@ -191,7 +191,6 @@ P_itPump_value = value(P_itPump);
 Z_it_upper_value = value(Z_it_upper);
 obj_value = value(obj);
 
-%机组发电的数据需要进一步验证。因为一天之内上下水位变化量实在太小了，按理来说不应该这么小的，注意观察
 if result.problem ~= 0
     [model,recoverymodel,diagnostic,internalmodel] = export(Constraints, obj,sdpsettings('solver','GUROBI+'));
     iis = gurobi_iis(model);
