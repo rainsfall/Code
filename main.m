@@ -3,6 +3,8 @@
 clear; clc; close all;
 %% 风光场景生成
 %Copula;
+%P_jwt_WPes %2*96的矩阵
+%P_jwt_WPac %2*96的矩阵
 %% 索引定义
 i = 2;
 t = 96; %时间点为96个点
@@ -11,15 +13,15 @@ dt = 60;    %时间间隔为15min
 
 % %% 目标函数变量定义
 % %   R_lm = sdpvar(1,96);中长期市场收益,决定变量为mu_nt_lm，P_ts_WPH_lm
-% P_ts_WPH_lm = intvar(1,96); %中长期市场联合体中标电量
+% P_ts_WPH_lm = sdpvar(1,96,5,'full'); %中长期市场联合体中标电量，5段式报价
 % 
 % %   R_da = sdpvar(1,96);日前市场收益,决定变量为mu_ntw_da，P_wts_WPH_da
 % mu_ntw_da = sdpvar(1,96);   %日前市场出清电价，也是下层功率平衡约束的拉格朗日乘子
-% P_wts_WPH_da = intvar(1,96);    %日前市场联合体中标电量
+% P_wts_WPH_da = sdpvar(1,96,5,'full');    %日前市场联合体中标电量,5段式报价
 % 
 % %   R_rt = sdpvar(1,96);实时市场收益,决定变量为mu_ntw_rt，P_wts_WPH_rt
 % mu_ntw_rt = sdpvar(1,96);   %实时市场出清电价，也是下层功率平衡约束的拉格朗日乘子
-% P_wts_WPH_rt = intvar(1,96);    %实时市场联合体中标电量
+% P_wts_WPH_rt = sdpvar(1,96,5,'full');    %实时市场联合体中标电量
 % 
 % %   R_TGC = sdpvar(1,96);绿证市场收益，决定变量为lambda_pt_TGC,Q_pt_TGC
 % lambda_pt_TGC = intvar(1,1);    %当下市场绿证单价
@@ -27,7 +29,8 @@ dt = 60;    %时间间隔为15min
 
 
 %% 约束条件部分
-%% 约束部分变量定义
+%% 水量平衡方程,发电流量约束约束部分,水电站运行边界条件约束
+%% 水量平衡方程,发电流量约束约束部分,水电站运行边界条件变量定义
 V_it = sdpvar(2,96);
 Q_it_pump = sdpvar(1,96);
 Q_it = sdpvar(2,96);
@@ -38,14 +41,15 @@ P_itPump = sdpvar(1,96);
 
 Constraints = [];
 %% 水量平衡方程
-mu = 700; % 均值
-sigma = 1; % 标准差
+% 径流量
+mu = 300; % 均值
+sigma = 50; % 标准差
 I_it = max(normrnd(mu, sigma, [1, 96]), 0);
 
 for t = 1:95
     % 上级水库的水量平衡约束条件
-    Constraints = [Constraints, V_it(1,t+1) - V_it(1,t) - (I_it(1,t) + Q_it_pump(t) - Q_it_ele(1,t) - Q_it_dis(1,t)) * dt *60  == 0];
-    Constraints = [Constraints, V_it(2,t+1) - V_it(2,t) - (Q_it(1,t) - Q_it_pump(t) - Q_it_ele(2,t) - Q_it_dis(2,t)) * dt *60  == 0];
+    Constraints = [Constraints, V_it(1,t+1) - V_it(1,t) - (I_it(1,t) + Q_it_pump(t) - Q_it_ele(1,t) - Q_it_dis(1,t)) * dt *60/1e8  == 0];
+    Constraints = [Constraints, V_it(2,t+1) - V_it(2,t) - (Q_it(1,t) - Q_it_pump(t) - Q_it_ele(2,t) - Q_it_dis(2,t)) * dt *60/1e8  == 0];
 end
 
 %% 发电流量约束
@@ -58,9 +62,9 @@ Constraints = [Constraints,Q_it_ele + Q_it_dis == Q_it];
 % Z_2tl_max = 2452;   %拉西瓦水电站正常蓄水位
 
 intervals1 = [2530, 2540, 2550, 2560, 2570, 2580, 2590, 2600]; % 龙羊峡水位
-ref_values1 = [52.85, 71.90, 93.81, 117.62, 145.24, 175.71, 210.24, 247.14]*1e8; % 龙羊峡库容
+ref_values1 = [52.85, 71.90, 93.81, 117.62, 145.24, 175.71, 210.24, 247.14]; % 龙羊峡库容
 intervals2 = [2440, 2445, 2449, 2452]; % 拉西瓦水位
-ref_values2 = [8.55, 9.1, 9.5, 10]*1e8; % 拉西瓦库容
+ref_values2 = [8.55, 9.1, 9.5, 10]; % 拉西瓦库容
 
 Z_it_upper = sdpvar(2, 96);
 
@@ -92,7 +96,7 @@ for t = 1:96
     local_Z = 0; % 局部变量存储 Z 的计算结果
     for l = 1:length(intervals2)-1
         local_constraints = [local_constraints, implies(ref_values2(l) <= V_itl2(1, t, l) <= ref_values2(l+1),phi_itl2(1, t, l))];
-        local_constraints = [local_constraints,phi_itl2(1, t, l)*ref_values2(l) <= V_itl2(1, t, l) <= phi_itl2(1, t, l)*ref_values2(l+1)]
+        local_constraints = [local_constraints,phi_itl2(1, t, l)*ref_values2(l) <= V_itl2(1, t, l) <= phi_itl2(1, t, l)*ref_values2(l+1)];
         local_Z = local_Z + (phi_itl2(1, t, l) * intervals2(l) + (intervals2(l+1) - intervals2(l)) / (ref_values2(l+1) - ref_values2(l)) * (V_itl2(1, t, l) - phi_itl2(1, t, l) * ref_values2(l)));
     end
     local_constraints = [local_constraints, sum(phi_itl2(1, t, :)) == 1];
@@ -117,7 +121,7 @@ for t = 1:96
     local_Z = 0; % 局部变量存储 Z 的计算结果
     for m = 1:length(intervals3)-1
         local_constraints = [local_constraints, implies(ref_values3(m) <= Q_itm3(1, t, m) <= ref_values3(m+1),phi_itm3(1, t, m))];
-        local_constraints = [local_constraints,phi_itm3(1, t, m)*ref_values3(m) <= Q_itm3(1, t, m) <= phi_itm3(1, t, m)*ref_values3(m+1)]
+        local_constraints = [local_constraints,phi_itm3(1, t, m)*ref_values3(m) <= Q_itm3(1, t, m) <= phi_itm3(1, t, m)*ref_values3(m+1)];
         local_Z = local_Z + (phi_itm3(1, t, m) * intervals3(m) + (intervals3(m+1) - intervals3(m)) / (ref_values3(m+1) - ref_values3(m)) * (Q_itm3(1, t, m) - phi_itm3(1, t, m) * ref_values3(m)));
     end
     local_constraints = [local_constraints, sum(phi_itm3(1, t, :)) == 1];
@@ -133,7 +137,7 @@ for t = 1:96
     local_Z = 0; % 局部变量存储 Z 的计算结果
     for m = 1:length(intervals4)-1
         local_constraints = [local_constraints, implies(ref_values4(m) <= Q_itm4(1, t, m) <= ref_values4(m+1),phi_itm4(1, t, m))];
-        local_constraints = [local_constraints,phi_itm4(1, t, m)*ref_values4(m) <= Q_itm4(1, t, m) <= phi_itm4(1, t, m)*ref_values4(m+1)]
+        local_constraints = [local_constraints,phi_itm4(1, t, m)*ref_values4(m) <= Q_itm4(1, t, m) <= phi_itm4(1, t, m)*ref_values4(m+1)];
         local_Z = local_Z + (phi_itm4(1, t, m) * intervals4(m) + (intervals4(m+1) - intervals4(m)) / (ref_values4(m+1) - ref_values4(m)) * (Q_itm4(1, t, m) - phi_itm4(1, t, m) * ref_values4(m)));
     end
     local_constraints = [local_constraints, sum(phi_itm4(1, t, :)) == 1];
@@ -144,13 +148,16 @@ end
 
 % 水电站功率约束
 Constraints = [Constraints,...
-    P_itH(1,:) == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_down(1,:)).*Q_it_ele(1,:),...
-    P_itH(2,:) == 7*9.81*0.5*(Z_it_upper(2,:)-Z_it_down(2,:)).*Q_it_ele(2,:)];%这里的单位为KW，所以下面的1280*1e3实际上是1280MW
+    P_itH(1,:) == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_down(1,:)).*Q_it_ele(1,:)/1e3,...
+    P_itH(2,:) == 7*9.81*0.5*(Z_it_upper(2,:)-Z_it_down(2,:)).*Q_it_ele(2,:)/1e3];%这里的单位为KW，所以下面的1280*1e3实际上是1280MW
 % 泵站耗电量约束
 Constraints = [Constraints,...
-    P_itPump == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_upper(2,:)).*Q_it_pump];
+    P_itPump == 4*9.81*0.5*(Z_it_upper(1,:)-Z_it_upper(2,:)).*Q_it_pump,...
+    0<=P_itPump<=1000];
 
 %% 水电站运行边界条件
+% 有关数据
+
 % 水位约束
 Constraints = [Constraints, 2530 <= Z_it_upper(1,:) <= 2600, 2440<=Z_it_upper(2,:)<=2452];
 Constraints = [Constraints, 2451<=Z_it_down(1,:)<=2455, 2236<=Z_it_down(2,:)<=2241];
@@ -159,27 +166,28 @@ Constraints = [Constraints, 0<= Q_it(1,:) <= 1200, 0<= Q_it_ele(1,:) <= 1192, 0<
 Constraints = [Constraints, 0<= Q_it(2,:) <= 2660, 0<= Q_it_ele(2,:) <= 2660, 0<=Q_it_dis(2,:)<=2000 ];
 Constraints = [Constraints,0<= Q_itm3 <= 1192,0<= Q_itm4 <= 2660];
 % 机组出力约束
-Constraints = [Constraints, 589.8*1e3<= P_itH(1,:)<= 1280*1e3,990*1e3<=P_itH(2,:)<=4200*1e3];
+Constraints = [Constraints, 589.8<= P_itH(1,:)<= 1280,990<=P_itH(2,:)<=4200];
 % 泵站出力约束
 Constraints = [Constraints,0<=Q_it_pump<=172.5*4];
 % 库容约束
-Constraints = [Constraints, 52.85*1e8<=V_it(1,:)<=247.14*1e8, 8.55*1e8<=V_it(2,:)<=10*1e8];
-Constraints = [Constraints, 0*1e8<=V_itl1<=247.14*1e8, 0<=V_itl2<=10*1e8];
+Constraints = [Constraints, 52.85<=V_it(1,:)<=247.14, 8.55<=V_it(2,:)<=10];
+Constraints = [Constraints, 0<=V_itl1<=247.14, 0<=V_itl2<=10];
 % 初值约束
-Constraints = [Constraints,V_it(1,1) == 60*1e8,V_it(2,1) == 9.1*1e8]; %库容初值
+Constraints = [Constraints,V_it(1,1) == 60,V_it(2,1) == 9.1]; %库容初值
 Constraints = [Constraints,Q_it(1,1) == 500,Q_it(2,1) == 1559.93]; %泄流量初值
 
-% 绝对值问题,负荷跟踪误差最小
-load = normrnd(3*1e6, 1e6, [1, 96]);
+% 绝对值问题,两个水电站出力之和-负荷-泵站功率最小
+% 负荷设定
+load = normrnd(4*1e3, 1e3, [1, 96]);
 Z = sdpvar(1,96);
-Constraints = [Constraints,Z >= P_itH(1,:)+P_itH(2,:)-load(1,:),...
-    Z >= load(1,:)-P_itH(1,:)-P_itH(2,:)];
+Constraints = [Constraints,Z >= P_itH(1,:)+P_itH(2,:)-load-P_itPump,...
+    Z >= load+P_itPump-P_itH(1,:)-P_itH(2,:)];
 
-
+%% 分步求解部分
 ops = sdpsettings('solver', 'Gurobi+', 'verbose', 2, 'debug', 1);
 ops.gurobi.IntegralityFocus = 1;
 ops.gurobi.gurobi.NonConvex = 2;
-obj = sum(Z) ;
+obj = sum(Z);
 result = optimize(Constraints,obj,ops);
 P_itH_value = value(P_itH);
 Q_it_value = value(Q_it);
@@ -197,3 +205,30 @@ if result.problem ~= 0
     gurobi_write(model, 'TestModel.lp');
     find(iis.Arows);
 end
+
+%画图
+figure(1);
+x = linspace(1, 96, 96);
+colors = [187, 225, 250;50, 130, 184;0, 173, 181] / 255; % Specify RGB colors (scaled to [0, 1])
+bar(x, [P_itH_value;-P_itPump_value], 'stacked');
+colormap(colors);
+%改色
+h = gca;
+numBars = numel(h.Children);
+for i = 1:numBars
+    h.Children(i).FaceColor = colors(mod(i-1, size(colors, 1))+1, :);
+end
+hold on
+plot(x,load,'Color','k','Marker','s','MarkerFaceColor','black','LineWidth',2);
+plot(x,ones(1,96)*5480,'Color','cyan','LineStyle','-.','LineWidth',1);
+legend('龙羊峡出力','拉西瓦出力','泵站出力','负荷');
+
+
+
+
+
+
+
+
+
+

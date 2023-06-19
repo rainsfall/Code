@@ -52,7 +52,7 @@ title('秋天风电出力5个代表场景')
 xlabel('场景'); ylabel('时刻');zlabel('风电出力值');
 figure(6);
 plot3(data,time,solardata_autumn, 'linewidth', 1);
-title('冬天秋天光伏出力5个代表场景')
+title('秋天光伏出力5个代表场景')
 xlabel('场景'); ylabel('时刻');zlabel('光伏出力值');
 
 
@@ -65,6 +65,26 @@ figure(8);
 plot3(data,time,solardata_winter, 'linewidth', 1);
 title('冬天光伏出力5个代表场景')
 xlabel('场景'); ylabel('时刻');zlabel('光伏出力值');
+
+solardata_min_spring = min(solardata_spring);
+solardata_max_spring = max(solardata_spring);
+winddata_min_spring = min(winddata_spring);
+winddata_max_spring = max(winddata_spring); 
+
+solardata_min_summer = min(solardata_summer);
+solardata_max_summer = max(solardata_summer);
+winddata_min_summer = min(winddata_summer);
+winddata_max_summer = max(winddata_summer);
+
+solardata_min_autumn = min(solardata_autumn);
+solardata_max_autumn = max(solardata_autumn);
+winddata_min_autumn = min(winddata_autumn);
+winddata_max_autumn = max(winddata_autumn);
+
+solardata_min_winter = min(solardata_winter);
+solardata_max_winter = max(solardata_winter);
+winddata_min_winter= min(winddata_winter);
+winddata_max_winter = max(winddata_winter);
 %% 函数定义
 function [C_solar,C_wind] = Copula_function(solardata,winddata)
     %数据扩大化
